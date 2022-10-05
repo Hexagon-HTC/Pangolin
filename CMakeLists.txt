@@ -5,6 +5,7 @@ set(PANGOLIN_VERSION_MINOR 6)
 set(PANGOLIN_VERSION ${PANGOLIN_VERSION_MAJOR}.${PANGOLIN_VERSION_MINOR})
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules/")
+include(${CMAKE_BINARY_DIR}/conan_paths.cmake)
 
 # Platform configuration vars
 include(SetPlatformVars)
@@ -61,7 +62,7 @@ endif()
 
 if(ANDROID OR IOS)
     set(HAVE_GLES 1)
-    option(BUILD_FOR_GLES_2 "Build for OpenGL ES 2 instead of ES 1" ON )
+    option(BUILD_FOR_GLES_2 "Build for ES 2 instead of ES 1" ON )
     if(BUILD_FOR_GLES_2)
         set(HAVE_GLES_2 1)
     endif()

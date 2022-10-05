@@ -171,10 +171,9 @@ if(BUILD_PANGOLIN_GUI)
         list(APPEND LINK_LIBS ${OPENGL_LIBRARIES})
 
         if(NOT BUILD_EXTERN_GLEW)
-            find_package(GLEW REQUIRED)
+            find_package(GLEW REQUIRED CONFIG)
         endif()
-        list(APPEND USER_INC  ${GLEW_INCLUDE_DIR})
-        list(APPEND LINK_LIBS ${GLEW_LIBRARY})
+        list(APPEND LINK_LIBS GLEW::GLEW)
     endif()
 
     if( HAVE_GLES_2 )
@@ -335,12 +334,12 @@ endif()
 
 option(BUILD_PANGOLIN_EIGEN "Build support for Eigen matrix types" ON)
 if(BUILD_PANGOLIN_EIGEN)
-  find_package(Eigen QUIET)
-  if(EIGEN_FOUND)
+  find_package(Eigen3 QUIET CONFIG)
+  if(EIGEN3_FOUND)
     set(HAVE_EIGEN 1)
-    list(APPEND USER_INC  ${EIGEN_INCLUDE_DIR} )
+    list(APPEND LINK_LIBS Eigen3::Eigen)
     if(_CLANG_)
-      # Eigen causes many of these errors. Suppress.
+       # Eigen causes many of these errors. Suppress.
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register")
     endif()
     message(STATUS "Eigen Found and Enabled")
@@ -635,7 +634,7 @@ add_library(${LIBRARY_NAME} ${SOURCES} ${HEADERS})
 target_include_directories(${LIBRARY_NAME} SYSTEM PUBLIC ${USER_INC} PRIVATE ${INTERNAL_INC})
 target_include_directories(${LIBRARY_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
                                                   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-                                                  $<INSTALL_INTERFACE:${INSTALL_INCLUDE_DIR}>)
+                                                  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_link_libraries(${LIBRARY_NAME} PUBLIC ${LINK_LIBS})
 
 ## Generate symbol export helper header on MSVC
@@ -649,7 +648,7 @@ IF(MSVC)
         STATIC_DEFINE ${LIBRARY_NAME_CAPS}_BUILT_AS_STATIC
     )
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/include/${LIBRARY_NAME}/${LIBRARY_NAME}_export.h"
-      DESTINATION ${CMAKE_INSTALL_PREFIX}/${INSTALL_INCLUDE_DIR}/${LIBRARY_NAME}
+      DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${LIBRARY_NAME}
     )
 ENDIF()
 
@@ -719,25 +718,19 @@ file( RELATIVE_PATH REL_INCLUDE_DIR
     "${CMAKE_INSTALL_PREFIX}/${INSTALL_INCLUDE_DIR}"
 )
 
-# Export library for easy inclusion from other cmake projects. APPEND allows
-# call to function even as subdirectory of larger project.
-FILE(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake")
-export( TARGETS ${LIBRARY_NAME}
-        APPEND FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake" )
-
 # Version information
 configure_file(${PROJECT_NAME}ConfigVersion.cmake.in
-  "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake" @ONLY)
+  "${CMAKE_CURRENT_BINARY_DIR}/${LIBRARY_NAME}ConfigVersion.cmake" @ONLY)
 
 # Build tree config
 set( EXPORT_LIB_INC_DIR "${PROJECT_SOURCE_DIR}/include;${CMAKE_CURRENT_BINARY_DIR}/include" )
 configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}Config.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake @ONLY IMMEDIATE )
+    ${CMAKE_CURRENT_BINARY_DIR}/${LIBRARY_NAME}Config.cmake @ONLY IMMEDIATE )
 
 # Install tree config
 set( EXPORT_LIB_INC_DIR "\${PROJECT_CMAKE_DIR}/${REL_INCLUDE_DIR}" )
 configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}Config.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake @ONLY )
+    ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${LIBRARY_NAME}Config.cmake @ONLY )
 
 # Add package to CMake package registery for use from the build tree
 option( EXPORT_${PROJECT_NAME}
@@ -747,30 +740,40 @@ if( EXPORT_${PROJECT_NAME} )
   export( PACKAGE ${PROJECT_NAME} )
 endif()
 
+set_target_properties(${LIBRARY_NAME} PROPERTIES
+    OUTPUT_NAME ${LIBRARY_NAME}
+    DEBUG_POSTFIX ""
+    PDB_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    COMPILE_PDB_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+    PDB_NAME ${LIBRARY_NAME}
+    COMPILE_PDB_NAME ${LIBRARY_NAME}
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+
 #######################################################
 ## Install headers / targets
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/include/${LIBRARY_NAME}/config.h"
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/${INSTALL_INCLUDE_DIR}/${LIBRARY_NAME}
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${LIBRARY_NAME}
 )
 install(DIRECTORY ${INCDIR}
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/${INSTALL_INCLUDE_DIR}
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-install(TARGETS ${LIBRARY_NAME}
-  EXPORT ${PROJECT_NAME}Targets
-  RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
-  LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-)
+
+install(TARGETS ${LIBRARY_NAME} EXPORT pangolin
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 #######################################################
 ## Install CMake config
 
 install(
-    FILES "${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake"
-          "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake"
-    DESTINATION ${CMAKECONFIG_INSTALL_DIR}
+      FILES "${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${LIBRARY_NAME}Config.cmake"
+            "${CMAKE_CURRENT_BINARY_DIR}/${LIBRARY_NAME}ConfigVersion.cmake"
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pangolin
 )
-install(
-    EXPORT ${PROJECT_NAME}Targets DESTINATION ${CMAKECONFIG_INSTALL_DIR}
-)
+  
+install(EXPORT pangolin NAMESPACE pangolin:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/pangolin FILE ${LIBRARY_NAME}Targets.cmake)
